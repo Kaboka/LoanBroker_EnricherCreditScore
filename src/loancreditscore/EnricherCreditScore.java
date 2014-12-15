@@ -28,44 +28,37 @@ import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
 
-public class EnricherCreditScore {
-    
+public class EnricherCreditScore implements Runnable {
+
     private static final String OUT_QUEUE_NAME = "enricher_rules";
     private static final String IN_QUEUE_NAME = "enricher_creditScore";
+    private static Channel channel; //Burde have 2 channels
     private static ICreditBureauGateway creditGateway;
+    public EnricherCreditScore() {
+    }
     
-    public static void main(String[] args) throws IOException {
-        creditGateway = new CreditBureauGateway();
-        ConnectionFactory factory = new ConnectionFactory();
-        factory.setUsername("nicklas");
-        factory.setPassword("cph");
-        factory.setHost("datdb.cphbusiness.dk");
-        
-        Connection connection = factory.newConnection();
-        Channel channel = connection.createChannel();
-        //mangler exchange og bind
-        channel.queueDeclare(IN_QUEUE_NAME, false, false, false, null);
-        channel.queueDeclare(OUT_QUEUE_NAME, false, false, false, null);
-        QueueingConsumer consumer = new QueueingConsumer(channel);
-        channel.basicConsume(IN_QUEUE_NAME, consumer);
-//        System.out.println("Loanbroker.CreditScore: " + creditScore(ssn));
-        
-        while (true) {
-            QueueingConsumer.Delivery delivery = null;
-            try {
-                delivery = consumer.nextDelivery();
-                channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
-                String message = enrichMessage(new String(delivery.getBody()));
-                channel.basicPublish("", OUT_QUEUE_NAME, delivery.getProperties(), message.getBytes());
-            } catch (InterruptedException | ShutdownSignalException | ConsumerCancelledException ex) {
-               ex.printStackTrace();
-            }
+    public static void main(String[] args) {
+                try {
+            creditGateway = new CreditBureauGateway();
+            ConnectionFactory factory = new ConnectionFactory();
+            factory.setUsername("nicklas");
+            factory.setPassword("cph");
+            factory.setHost("datdb.cphbusiness.dk");
+
+            Connection connection = factory.newConnection();
+            channel = connection.createChannel();
+            //mangler exchange og bind
+            channel.queueDeclare(IN_QUEUE_NAME, false, false, false, null);
+            channel.queueDeclare(OUT_QUEUE_NAME, false, false, false, null);
+        } catch (IOException ex) {
+            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
     
-    private static String enrichMessage(String xmlMessage){
+
+    private String enrichMessage(String xmlMessage) {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        XPath xPath =  XPathFactory.newInstance().newXPath();
+        XPath xPath = XPathFactory.newInstance().newXPath();
         String enrichedMessage = "";
         try {
             DocumentBuilder builder = factory.newDocumentBuilder();
@@ -73,7 +66,7 @@ public class EnricherCreditScore {
             Node loanRequest = doc.getFirstChild();
             String ssn = xPath.compile("/LoanRequest/ssn").evaluate(doc);
             Element credit = doc.createElement("creditScore");
-            credit.appendChild(doc.createTextNode(""+creditGateway.getCreditScore(ssn)));
+            credit.appendChild(doc.createTextNode("" + creditGateway.getCreditScore(ssn)));
             loanRequest.appendChild(credit);
             enrichedMessage = getStringFromDoc(doc);
             System.out.println(enrichedMessage);
@@ -89,22 +82,41 @@ public class EnricherCreditScore {
         return enrichedMessage;
     }
 
-    private static String getStringFromDoc(org.w3c.dom.Document doc)    {
-        try
-        {
-           DOMSource domSource = new DOMSource(doc);
-           StringWriter writer = new StringWriter();
-           StreamResult result = new StreamResult(writer);
-           TransformerFactory tf = TransformerFactory.newInstance();
-           Transformer transformer = tf.newTransformer();
-           transformer.transform(domSource, result);
-           writer.flush();
-           return writer.toString();
+    private String getStringFromDoc(Document doc) {
+        try {
+            DOMSource domSource = new DOMSource(doc);
+            StringWriter writer = new StringWriter();
+            StreamResult result = new StreamResult(writer);
+            TransformerFactory tf = TransformerFactory.newInstance();
+            Transformer transformer = tf.newTransformer();
+            transformer.transform(domSource, result);
+            writer.flush();
+            return writer.toString();
+        } catch (TransformerException ex) {
+            ex.printStackTrace();
+            return null;
         }
-        catch(TransformerException ex)
-        {
-           ex.printStackTrace();
-           return null;
+    }
+
+    @Override
+    public void run() {
+        try {
+            QueueingConsumer consumer = new QueueingConsumer(channel);
+            channel.basicConsume(IN_QUEUE_NAME, consumer);
+
+            while (true) {
+                QueueingConsumer.Delivery delivery = null;
+                try {
+                    delivery = consumer.nextDelivery();
+                    channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                    String message = enrichMessage(new String(delivery.getBody()));
+                    channel.basicPublish("", OUT_QUEUE_NAME, delivery.getProperties(), message.getBytes());
+                } catch (InterruptedException | ShutdownSignalException | ConsumerCancelledException ex) {
+                    ex.printStackTrace();
+                }
+            }
+        } catch (IOException ex) {
+            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
 }
