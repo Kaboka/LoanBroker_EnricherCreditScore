@@ -33,11 +33,12 @@ public class EnricherCreditScore implements Runnable {
     private static final String IN_QUEUE_NAME = "enricher_creditScore";
     private static Channel channel; //Burde have 2 channels
     private static ICreditBureauGateway creditGateway;
+
     public EnricherCreditScore() {
     }
-    
+
     public static void main(String[] args) {
-                try {
+        try {
             creditGateway = new CreditBureauGateway();
             ConnectionCreator creator = ConnectionCreator.getInstance();
             channel = creator.createChannel();
@@ -48,7 +49,6 @@ public class EnricherCreditScore implements Runnable {
             Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
         }
     }
-    
 
     private String enrichMessage(String xmlMessage) {
         DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
