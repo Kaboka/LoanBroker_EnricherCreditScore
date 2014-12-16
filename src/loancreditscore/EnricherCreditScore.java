@@ -1,12 +1,11 @@
 package loancreditscore;
 
-import com.rabbitmq.client.AMQP;
 import com.rabbitmq.client.Channel;
 import com.rabbitmq.client.Connection;
-import com.rabbitmq.client.ConnectionFactory;
 import com.rabbitmq.client.ConsumerCancelledException;
 import com.rabbitmq.client.QueueingConsumer;
 import com.rabbitmq.client.ShutdownSignalException;
+import dk.cphbusiness.connection.ConnectionCreator;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.io.StringWriter;
@@ -40,13 +39,8 @@ public class EnricherCreditScore implements Runnable {
     public static void main(String[] args) {
                 try {
             creditGateway = new CreditBureauGateway();
-            ConnectionFactory factory = new ConnectionFactory();
-            factory.setUsername("nicklas");
-            factory.setPassword("cph");
-            factory.setHost("datdb.cphbusiness.dk");
-
-            Connection connection = factory.newConnection();
-            channel = connection.createChannel();
+            ConnectionCreator creator = ConnectionCreator.getInstance();
+            channel = creator.createChannel();
             //mangler exchange og bind
             channel.queueDeclare(IN_QUEUE_NAME, false, false, false, null);
             channel.queueDeclare(OUT_QUEUE_NAME, false, false, false, null);
