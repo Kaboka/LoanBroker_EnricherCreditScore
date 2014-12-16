@@ -26,12 +26,14 @@ import org.w3c.dom.Document;
 import org.w3c.dom.Element;
 import org.w3c.dom.Node;
 import org.xml.sax.SAXException;
+import utilities.xml.xmlMapper;
 
-public class EnricherCreditScore implements Runnable {
+public class EnricherCreditScore{
 
-    private static final String OUT_QUEUE_NAME = "enricher_rules";
-    private static final String IN_QUEUE_NAME = "enricher_creditScore";
-    private static Channel channel; //Burde have 2 channels
+    private static final String OUT_QUEUE_NAME = "enricher_rules_gr1";
+    private static final String IN_QUEUE_NAME = "enricher_creditScore_gr1";
+    private static Channel inChannel;
+    private static Channel outChannel;
     private static ICreditBureauGateway creditGateway;
 
     public EnricherCreditScore() {
@@ -41,70 +43,20 @@ public class EnricherCreditScore implements Runnable {
         try {
             creditGateway = new CreditBureauGateway();
             ConnectionCreator creator = ConnectionCreator.getInstance();
-            channel = creator.createChannel();
-            //mangler exchange og bind
-            channel.queueDeclare(IN_QUEUE_NAME, false, false, false, null);
-            channel.queueDeclare(OUT_QUEUE_NAME, false, false, false, null);
-        } catch (IOException ex) {
-            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
-        }
-    }
+            inChannel = creator.createChannel();
+            inChannel.queueDeclare(IN_QUEUE_NAME, false, false, false, null);
+            outChannel.queueDeclare(OUT_QUEUE_NAME, false, false, false, null);
 
-    private String enrichMessage(String xmlMessage) {
-        DocumentBuilderFactory factory = DocumentBuilderFactory.newInstance();
-        XPath xPath = XPathFactory.newInstance().newXPath();
-        String enrichedMessage = "";
-        try {
-            DocumentBuilder builder = factory.newDocumentBuilder();
-            Document doc = builder.parse(new ByteArrayInputStream(xmlMessage.getBytes()));
-            Node loanRequest = doc.getFirstChild();
-            String ssn = xPath.compile("/LoanRequest/ssn").evaluate(doc);
-            Element credit = doc.createElement("creditScore");
-            credit.appendChild(doc.createTextNode("" + creditGateway.getCreditScore(ssn)));
-            loanRequest.appendChild(credit);
-            enrichedMessage = getStringFromDoc(doc);
-            System.out.println(enrichedMessage);
-        } catch (SAXException ex) {
-            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (IOException ex) {
-            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (XPathExpressionException ex) {
-            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
-        } catch (ParserConfigurationException ex) {
-            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
-        }
-        return enrichedMessage;
-    }
-
-    private String getStringFromDoc(Document doc) {
-        try {
-            DOMSource domSource = new DOMSource(doc);
-            StringWriter writer = new StringWriter();
-            StreamResult result = new StreamResult(writer);
-            TransformerFactory tf = TransformerFactory.newInstance();
-            Transformer transformer = tf.newTransformer();
-            transformer.transform(domSource, result);
-            writer.flush();
-            return writer.toString();
-        } catch (TransformerException ex) {
-            ex.printStackTrace();
-            return null;
-        }
-    }
-
-    @Override
-    public void run() {
-        try {
-            QueueingConsumer consumer = new QueueingConsumer(channel);
-            channel.basicConsume(IN_QUEUE_NAME, consumer);
+            QueueingConsumer consumer = new QueueingConsumer(inChannel);
+            inChannel.basicConsume(IN_QUEUE_NAME, consumer);
 
             while (true) {
                 QueueingConsumer.Delivery delivery = null;
                 try {
                     delivery = consumer.nextDelivery();
-                    channel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
+                    inChannel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
                     String message = enrichMessage(new String(delivery.getBody()));
-                    channel.basicPublish("", OUT_QUEUE_NAME, delivery.getProperties(), message.getBytes());
+                    outChannel.basicPublish("", OUT_QUEUE_NAME, delivery.getProperties(), message.getBytes());
                 } catch (InterruptedException | ShutdownSignalException | ConsumerCancelledException ex) {
                     ex.printStackTrace();
                 }
@@ -112,5 +64,23 @@ public class EnricherCreditScore implements Runnable {
         } catch (IOException ex) {
             Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
         }
+    }
+
+    private static String enrichMessage(String xmlMessage) {
+        XPath xPath = XPathFactory.newInstance().newXPath();
+        String enrichedMessage = "";
+        try {
+            Document doc = xmlMapper.getXMLDocument(xmlMessage);
+            Node loanRequest = doc.getFirstChild();
+            String ssn = xPath.compile("/LoanRequest/ssn").evaluate(doc);
+            Element credit = doc.createElement("creditScore");
+            credit.appendChild(doc.createTextNode("" + creditGateway.getCreditScore(ssn)));
+            loanRequest.appendChild(credit);
+            enrichedMessage = xmlMapper.getStringFromDoc(doc);
+            System.out.println(enrichedMessage);
+        } catch (XPathExpressionException ex) {
+            Logger.getLogger(EnricherCreditScore.class.getName()).log(Level.SEVERE, null, ex);
+        }
+        return enrichedMessage;
     }
 }
