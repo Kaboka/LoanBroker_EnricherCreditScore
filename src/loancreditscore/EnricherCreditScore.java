@@ -45,6 +45,7 @@ public class EnricherCreditScore{
             ConnectionCreator creator = ConnectionCreator.getInstance();
             inChannel = creator.createChannel();
             inChannel.queueDeclare(IN_QUEUE_NAME, false, false, false, null);
+            outChannel = creator.createChannel();
             outChannel.queueDeclare(OUT_QUEUE_NAME, false, false, false, null);
 
             QueueingConsumer consumer = new QueueingConsumer(inChannel);
@@ -54,6 +55,7 @@ public class EnricherCreditScore{
                 QueueingConsumer.Delivery delivery = null;
                 try {
                     delivery = consumer.nextDelivery();
+                    System.out.println("Got Message: " + new String(delivery.getBody()));
                     inChannel.basicAck(delivery.getEnvelope().getDeliveryTag(), false);
                     String message = enrichMessage(new String(delivery.getBody()));
                     outChannel.basicPublish("", OUT_QUEUE_NAME, delivery.getProperties(), message.getBytes());

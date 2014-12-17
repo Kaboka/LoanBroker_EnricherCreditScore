@@ -1401,7 +1401,6 @@ is divided into following sections:
         <antcall target="-maybe-call-dep">
             <param name="call.built.properties" value="${built-clean.properties}"/>
             <param location="${project.LoanBrokerConnectionLib}" name="call.subproject"/>
-            <param location="${project.LoanBrokerConnectionLib}/build.xml" name="call.script"/>
             <param name="call.target" value="clean"/>
             <param name="transfer.built-clean.properties" value="${built-clean.properties}"/>
             <param name="transfer.not.archive.disabled" value="true"/>
@@ -1409,7 +1408,6 @@ is divided into following sections:
         <antcall target="-maybe-call-dep">
             <param name="call.built.properties" value="${built-clean.properties}"/>
             <param location="${project.MessageUtilities}" name="call.subproject"/>
-            <param location="${project.MessageUtilities}/build.xml" name="call.script"/>
             <param name="call.target" value="clean"/>
             <param name="transfer.built-clean.properties" value="${built-clean.properties}"/>
             <param name="transfer.not.archive.disabled" value="true"/>
